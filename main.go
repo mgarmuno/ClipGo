@@ -18,7 +18,6 @@ func onReady() {
 	buf := getImageBytes()
 
 	systray.SetIcon(buf.Bytes())
-	systray.SetTitle("Joder")
 	systray.SetTooltip("A ver si podemos hacer esta mierda")
 }
 
