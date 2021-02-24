@@ -12,10 +12,12 @@ import (
 )
 
 const (
-	sharePath   = "/.local/share"
-	filePath    = "clipGo"
-	fileName    = "clipGo.json"
-	clipCommand = "xsel"
+	relocateFirst = true
+	maxEntries    = 10
+	sharePath     = "/.local/share"
+	filePath      = "clipGo"
+	fileName      = "clipGo.json"
+	clipCommand   = "xsel"
 )
 
 type clipEntry struct {
