@@ -1,46 +1,62 @@
 package main
 
 import (
-	"bytes"
-	"image"
-	"image/png"
 	"log"
 	"os"
-
-	"github.com/getlantern/systray"
+	"os/exec"
+	"os/user"
 )
 
+const (
+	sharePath   = "/.local/share"
+	filePath    = "clipGo"
+	fileName    = "clipGo.json"
+	clipCommand = "xsel"
+)
+
+type clipEntry struct {
+}
+
+var args = []string{"--output", "--clipboard"}
+
 func main() {
-	systray.Run(onReady, onExit)
+
+	file := getFile()
+
+	clipContent := getClipboardContent()
+
+	file.Write(clipContent)
+	file.Close()
 }
 
-func onReady() {
-	buf := getImageBytes()
+func getFile() *os.File {
+	usr, err := user.Current()
+	if err != nil {
+		log.Fatal("Error getting user's home dir: ", err)
+	}
 
-	systray.SetIcon(buf.Bytes())
-	systray.SetTooltip("A ver si podemos hacer esta mierda")
+	userPath := usr.HomeDir
+
+	os.Chdir(userPath + sharePath)
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		os.MkdirAll(filePath, 0754)
+	}
+
+	os.Chdir(userPath + sharePath + "/" + filePath)
+
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0754)
+	if err != nil {
+		log.Fatal("Error opening the file: ", err)
+	}
+
+	return file
 }
 
-func onExit() {
-
-}
-
-func getImageBytes() *bytes.Buffer {
-	f, err := os.Open("icons/icon-white.png")
+func getClipboardContent() []byte {
+	clipContent, err := exec.Command(clipCommand, args[:]...).Output()
 	if err != nil {
-		log.Panic("Error reading icon file: ", err)
+		log.Fatal("Error getting the content of clipboard: ", err)
 	}
-
-	image, _, err := image.Decode(f)
-	if err != nil {
-		log.Panic("Error decoding icon: ", err)
-	}
-
-	buf := new(bytes.Buffer)
-	err = png.Encode(buf, image)
-	if err != nil {
-		log.Panic("Error encoding icon: ", err)
-	}
-
-	return buf
+	return clipContent
 }
