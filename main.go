@@ -23,14 +23,20 @@ const (
 	clipCommand   = "xsel"
 	actionAdd     = "add"
 	actionShow    = "show"
+	actionDelete  = "delete"
 	dmenu         = "dmenu"
+	echo          = "echo"
 )
 
 type clipEntry struct {
 	Text string
 }
 
-var args = []string{"--output", "--clipboard"}
+var (
+	xselArgs  = []string{"--output", "--clipboard"}
+	echoArgs  = []string{"-e"}
+	dmenuArgs = []string{"-l"}
+)
 
 func main() {
 
@@ -40,31 +46,38 @@ func main() {
 	case actionAdd:
 		addClipContentToFile()
 	case actionShow:
-		showFileContent()
+		fileContent := getFileContent()
+		showFileContentDmenu(fileContent)
+	case actionDelete:
 	}
 }
 
 func addClipContentToFile() {
 	file := getFile()
+	defer file.Close()
 
 	clipContent := getClipboardContent()
 	text := formatText(clipContent)
-	ce := clipEntry{Text: text}
+	if text == "" {
+		return
+	}
 
-	ca := make([]clipEntry, 2)
+	fileContent := getFileContent()
+	clipEntryContent := clipEntry{Text: text}
+	fileContent = removeEquals(clipEntryContent, fileContent)
+	fileContent = append([]clipEntry{clipEntryContent}, fileContent...)
+	fileContent = removeTail(fileContent)
 
-	ca[0] = ce
-	ca[1] = ce
-
-	json, err := json.Marshal(ca)
+	baJSON, err := json.Marshal(fileContent)
 	if err != nil {
 		log.Fatal("Error creating json entry: ", err)
+		return
 	}
 
 	file.Truncate(0)
 	file.Seek(0, 0)
 
-	file.Write(json)
+	file.Write(baJSON)
 }
 
 func getFile() *os.File {
@@ -86,7 +99,6 @@ func getFile() *os.File {
 	if err != nil {
 		log.Fatal("Error opening the file: ", err)
 	}
-	defer file.Close()
 
 	return file
 }
@@ -113,7 +125,7 @@ func getFileFullPath() string {
 }
 
 func getClipboardContent() []byte {
-	clipContent, err := exec.Command(clipCommand, args[:]...).Output()
+	clipContent, err := exec.Command(clipCommand, xselArgs[:]...).Output()
 	if err != nil {
 		log.Fatal("Error getting the content of clipboard: ", err)
 	}
@@ -134,15 +146,18 @@ func formatText(clipContent []byte) string {
 	return text
 }
 
-func showFileContent() {
+func getFileContent() []clipEntry {
 	file := readFile()
-	var ce []clipEntry
-	err := json.Unmarshal(file, &ce)
+	if string(file) == "" {
+		return []clipEntry{}
+	}
+	var clipEntryArray []clipEntry
+	err := json.Unmarshal(file, &clipEntryArray)
 	if err != nil {
 		log.Fatal("Error unmarshalling file: ", err)
 	}
 
-	showFileContentDmenu(ce)
+	return clipEntryArray
 }
 
 func showFileContentDmenu(ce []clipEntry) {
@@ -152,9 +167,10 @@ func showFileContentDmenu(ce []clipEntry) {
 	}
 
 	stringForDm := strings.Join(entries, "\\n")
-
-	c1 := exec.Command("echo", "-e", stringForDm)
-	c2 := exec.Command(dmenu, "-l", fmt.Sprint(len(entries)))
+	echoArgs = append(echoArgs, stringForDm)
+	dmenuArgs = append(dmenuArgs, fmt.Sprint(len(entries)))
+	c1 := exec.Command(echo, echoArgs...)
+	c2 := exec.Command(dmenu, dmenuArgs...)
 
 	r, w := io.Pipe()
 
@@ -173,4 +189,23 @@ func showFileContentDmenu(ce []clipEntry) {
 	st := b2.String()
 
 	fmt.Println(st)
+}
+
+func removeEquals(newEntry clipEntry, entries []clipEntry) []clipEntry {
+	for i, entry := range entries {
+		if entry == newEntry {
+			copy(entries[i:], entries[i+1:])
+			entries[len(entries)-1] = clipEntry{}
+			entries = entries[:len(entries)-1]
+		}
+	}
+	return entries
+}
+
+func removeTail(entries []clipEntry) []clipEntry {
+	if len(entries) > maxEntries {
+		entries = entries[:maxEntries]
+	}
+
+	return entries
 }
