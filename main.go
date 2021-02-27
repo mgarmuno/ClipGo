@@ -11,37 +11,40 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 )
 
 const (
-	relocateFirst = true
-	maxEntries    = 10
-	sharePath     = "/.local/share"
-	filePath      = "clipGo"
-	fileName      = "clipGo.json"
-	clipCommand   = "xsel"
-	actionAdd     = "add"
-	actionShow    = "show"
-	actionDelete  = "delete"
-	dmenu         = "dmenu"
-	echo          = "echo"
+	relocateFirst  = true
+	maxEntries     = 10
+	sharePath      = "/.local/share"
+	filePath       = "clipGo"
+	fileName       = "clipGo.json"
+	clipCommand    = "xsel"
+	actionAdd      = "add"
+	actionShow     = "show"
+	actionDelete   = "delete"
+	dmenu          = "dmenu"
+	echo           = "echo"
+	dmenuSeparator = " => "
+	endLineSign    = "⏎"
 )
 
-type clipEntry struct {
-	Text string
+type entity struct {
+	Position int
+	Text     string
 }
 
 var (
-	xselArgs  = []string{"--output", "--clipboard"}
-	echoArgs  = []string{"-e"}
-	dmenuArgs = []string{"-l"}
+	xselOutArgs = []string{"--output", "--clipboard"}
+	xselInArgs  = []string{"--input", "--clipboard"}
+	echoArgs    = []string{"-e"}
+	dmenuArgs   = []string{"-l"}
 )
 
 func main() {
-
 	action := os.Args[1]
-
 	switch action {
 	case actionAdd:
 		clipContent := getClipboardContent()
@@ -54,20 +57,36 @@ func main() {
 }
 
 func addTextToFile(text string) {
-	if text == "" {
+	if !isValidForSave(text) {
 		return
 	}
 
-	clipEntryContent := clipEntry{Text: text}
+	clipEntryContent := entity{Text: text}
 
 	fileContent := getFileContent()
 	fileContent = removeEquals(clipEntryContent, fileContent)
-	fileContent = append([]clipEntry{clipEntryContent}, fileContent...)
+	fileContent = append([]entity{clipEntryContent}, fileContent...)
 	fileContent = removeTail(fileContent)
 
-	baJSON, err := json.Marshal(fileContent)
+	marshalAndSave(fileContent)
+}
+
+func isValidForSave(text string) bool {
+	switch {
+	case text == "":
+		return false
+	case strings.ReplaceAll(text, "\t", "") == "":
+		return false
+	}
+
+	return true
+}
+
+func marshalAndSave(entries []entity) {
+	entries = assignOrderNumbers(entries)
+
+	baJSON, err := json.Marshal(entries)
 	if err != nil {
-		log.Fatal("Error creating json entry: ", err)
 		return
 	}
 
@@ -76,12 +95,20 @@ func addTextToFile(text string) {
 
 func writeJSONOnFile(baJSON []byte) {
 	file := getFile()
-	defer file.Close()
 
 	file.Truncate(0)
 	file.Seek(0, 0)
 
 	file.Write(baJSON)
+	file.Close()
+}
+
+func assignOrderNumbers(entries []entity) []entity {
+	for i := range entries {
+		entries[i].Position = i
+	}
+
+	return entries
 }
 
 func getFile() *os.File {
@@ -111,7 +138,6 @@ func readFile() []byte {
 	fullFilePath := getFileFullPath()
 	file, err := ioutil.ReadFile(fullFilePath)
 	if err != nil {
-		log.Fatal("Error reading file: ", err)
 		return []byte("")
 	}
 
@@ -130,7 +156,7 @@ func getFileFullPath() string {
 }
 
 func getClipboardContent() string {
-	clipContent, err := exec.Command(clipCommand, xselArgs[:]...).Output()
+	clipContent, err := exec.Command(clipCommand, xselOutArgs[:]...).Output()
 	if err != nil {
 		log.Fatal("Error getting the content of clipboard: ", err)
 	}
@@ -152,12 +178,12 @@ func formatText(clipContent []byte) string {
 	return text
 }
 
-func getFileContent() []clipEntry {
+func getFileContent() []entity {
 	file := readFile()
 	if string(file) == "" {
-		return []clipEntry{}
+		return []entity{}
 	}
-	var clipEntryArray []clipEntry
+	var clipEntryArray []entity
 	err := json.Unmarshal(file, &clipEntryArray)
 	if err != nil {
 		log.Fatal("Error unmarshalling file: ", err)
@@ -166,10 +192,11 @@ func getFileContent() []clipEntry {
 	return clipEntryArray
 }
 
-func showFileContentDmenu(ce []clipEntry) {
+func showFileContentDmenu(fileEnt []entity) {
 	entries := []string{}
-	for _, s := range ce {
-		entries = append(entries, s.Text)
+	for _, ent := range fileEnt {
+		cleanedUpText := cleanTextForDmenu(ent.Text)
+		entries = append(entries, fmt.Sprint(ent.Position)+dmenuSeparator+cleanedUpText)
 	}
 
 	stringForDm := strings.Join(entries, "\\n")
@@ -192,16 +219,65 @@ func showFileContentDmenu(ce []clipEntry) {
 	w.Close()
 	c2.Wait()
 
-	st := b2.String()
+	selText := b2.String()
 
-	fmt.Println(st)
+	if isValidForSave(selText) {
+		setSelectedItem(selText, fileEnt)
+	}
 }
 
-func removeEquals(newEntry clipEntry, entries []clipEntry) []clipEntry {
+func setSelectedItem(selText string, entries []entity) {
+	if selText == "" {
+		return
+	}
+	as := strings.Split(selText, dmenuSeparator)
+	position, err := strconv.Atoi(as[0])
+
+	if err != nil {
+		log.Panic("Error selecting item: ", err)
+	}
+
+	if relocateFirst {
+		addTextToFile(entries[position].Text)
+	}
+
+	writeToClipboard(entries[position].Text)
+}
+
+func writeToClipboard(st string) {
+	cmd := exec.Command(clipCommand, xselInArgs[:]...)
+	in, err := cmd.StdinPipe()
+	if err != nil {
+		log.Panic("Error generatind cmd to write in clipboard: ", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Panic("Error starting cmd: ", err)
+	}
+
+	if _, err := in.Write([]byte(st)); err != nil {
+		log.Panic("Error writing in clipboard: ", err)
+	}
+
+	if err := in.Close(); err != nil {
+		log.Panic("Error closing in pipe: ", err)
+	}
+
+	cmd.Wait()
+}
+
+func cleanTextForDmenu(s string) string {
+	s = strings.ReplaceAll(s, "\n", endLineSign)
+	s = strings.ReplaceAll(s, "\t", "    ")
+
+	return s
+}
+
+func removeEquals(newEntry entity, entries []entity) []entity {
 	for i, entry := range entries {
-		if entry == newEntry {
+		if entry.Text == newEntry.Text {
 			copy(entries[i:], entries[i+1:])
-			entries[len(entries)-1] = clipEntry{}
+			entries[len(entries)-1] = entity{}
 			entries = entries[:len(entries)-1]
 		}
 	}
@@ -209,7 +285,7 @@ func removeEquals(newEntry clipEntry, entries []clipEntry) []clipEntry {
 	return entries
 }
 
-func removeTail(entries []clipEntry) []clipEntry {
+func removeTail(entries []entity) []entity {
 	if len(entries) > maxEntries {
 		entries = entries[:maxEntries]
 	}
