@@ -44,7 +44,8 @@ func main() {
 
 	switch action {
 	case actionAdd:
-		addClipContentToFile()
+		clipContent := getClipboardContent()
+		addTextToFile(clipContent)
 	case actionShow:
 		fileContent := getFileContent()
 		showFileContentDmenu(fileContent)
@@ -52,18 +53,14 @@ func main() {
 	}
 }
 
-func addClipContentToFile() {
-	file := getFile()
-	defer file.Close()
-
-	clipContent := getClipboardContent()
-	text := formatText(clipContent)
+func addTextToFile(text string) {
 	if text == "" {
 		return
 	}
 
-	fileContent := getFileContent()
 	clipEntryContent := clipEntry{Text: text}
+
+	fileContent := getFileContent()
 	fileContent = removeEquals(clipEntryContent, fileContent)
 	fileContent = append([]clipEntry{clipEntryContent}, fileContent...)
 	fileContent = removeTail(fileContent)
@@ -73,6 +70,13 @@ func addClipContentToFile() {
 		log.Fatal("Error creating json entry: ", err)
 		return
 	}
+
+	writeJSONOnFile(baJSON)
+}
+
+func writeJSONOnFile(baJSON []byte) {
+	file := getFile()
+	defer file.Close()
 
 	file.Truncate(0)
 	file.Seek(0, 0)
@@ -120,16 +124,18 @@ func getFileFullPath() string {
 		log.Fatal("Error getting user's home dir: ", err)
 	}
 	userPath := usr.HomeDir
+
 	return userPath + sharePath + "/" + filePath + "/" + fileName
 
 }
 
-func getClipboardContent() []byte {
+func getClipboardContent() string {
 	clipContent, err := exec.Command(clipCommand, xselArgs[:]...).Output()
 	if err != nil {
 		log.Fatal("Error getting the content of clipboard: ", err)
 	}
-	return clipContent
+
+	return string(clipContent)
 }
 
 func formatText(clipContent []byte) string {
@@ -199,6 +205,7 @@ func removeEquals(newEntry clipEntry, entries []clipEntry) []clipEntry {
 			entries = entries[:len(entries)-1]
 		}
 	}
+
 	return entries
 }
 
