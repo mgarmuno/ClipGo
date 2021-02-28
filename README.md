@@ -26,4 +26,4 @@ It accepts three inputs as first parameter:
     delete -> Deletes the entry from the history.
 
 It's recommended to call delete and show through shortcuts in the DE or WM you use and add with a 
-shell script as mentioned before.
+bash script as mentioned before.
