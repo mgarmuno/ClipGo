@@ -4,7 +4,7 @@ Simple clipboard manager written in Go.
 
 # Dependencies
 
-The clipboard history is shown and manipulated via dmenu https://tools.suckless.org/dmenu/.
+The clipboard history is shown via dmenu https://tools.suckless.org/dmenu/.
 
 You will need to have installed https://github.com/kfish/xsel. If you want to use another program to
 manipulate the clipboard you will have to change the source.
