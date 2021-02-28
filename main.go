@@ -47,12 +47,12 @@ func main() {
 	action := os.Args[1]
 	switch action {
 	case actionAdd:
-		clipContent := getClipboardContent()
-		addTextToFile(clipContent)
+		text := getClipboardContent()
+		addTextToFile(text)
 	case actionShow:
-		fileContent := getFileContent()
-		showFileContentDmenu(fileContent)
+		showEntities()
 	case actionDelete:
+		deleteEntity()
 	}
 }
 
@@ -69,6 +69,38 @@ func addTextToFile(text string) {
 	fileContent = removeTail(fileContent)
 
 	marshalAndSave(fileContent)
+}
+
+func showEntities() {
+	entities := getFileContent()
+	selText := showEntitiesDmenu(entities)
+
+	if isValidForSave(selText) {
+		setSelectedItem(selText, entities)
+	}
+}
+
+func deleteEntity() {
+	entities := getFileContent()
+	selText := showEntitiesDmenu(entities)
+	index := strings.Split(selText, dmenuSeparator)[0]
+	i, err := strconv.Atoi(index)
+	if err != nil {
+		log.Fatal("Error parsing string index to int on delete: ", err)
+	}
+	entities = removeEntityByIndex(i, entities)
+	marshalAndSave(entities)
+}
+
+func showEntitiesDmenu(entities []entity) string {
+	entries := []string{}
+	for _, ent := range entities {
+		cleanedUpText := cleanTextForDmenu(ent.Text)
+		entries = append(entries, fmt.Sprint(ent.Position)+dmenuSeparator+cleanedUpText)
+	}
+
+	stringForDm := strings.Join(entries, "\\n")
+	return executeCommands(stringForDm, len(entries))
 }
 
 func isValidForSave(text string) bool {
@@ -192,38 +224,27 @@ func getFileContent() []entity {
 	return clipEntryArray
 }
 
-func showFileContentDmenu(fileEnt []entity) {
-	entries := []string{}
-	for _, ent := range fileEnt {
-		cleanedUpText := cleanTextForDmenu(ent.Text)
-		entries = append(entries, fmt.Sprint(ent.Position)+dmenuSeparator+cleanedUpText)
-	}
+func executeCommands(ent string, len int) string {
+	echoArgs = append(echoArgs, ent)
+	dmenuArgs = append(dmenuArgs, fmt.Sprint(len))
+	cmdEcho := exec.Command(echo, echoArgs...)
+	cmdDmenu := exec.Command(dmenu, dmenuArgs...)
 
-	stringForDm := strings.Join(entries, "\\n")
-	echoArgs = append(echoArgs, stringForDm)
-	dmenuArgs = append(dmenuArgs, fmt.Sprint(len(entries)))
-	c1 := exec.Command(echo, echoArgs...)
-	c2 := exec.Command(dmenu, dmenuArgs...)
+	read, write := io.Pipe()
 
-	r, w := io.Pipe()
+	cmdEcho.Stdout = write
+	cmdDmenu.Stdin = read
 
-	c1.Stdout = w
-	c2.Stdin = r
+	var output bytes.Buffer
+	cmdDmenu.Stdout = &output
 
-	var b2 bytes.Buffer
-	c2.Stdout = &b2
+	cmdEcho.Start()
+	cmdDmenu.Start()
+	cmdEcho.Wait()
+	write.Close()
+	cmdDmenu.Wait()
 
-	c1.Start()
-	c2.Start()
-	c1.Wait()
-	w.Close()
-	c2.Wait()
-
-	selText := b2.String()
-
-	if isValidForSave(selText) {
-		setSelectedItem(selText, fileEnt)
-	}
+	return output.String()
 }
 
 func setSelectedItem(selText string, entries []entity) {
@@ -274,15 +295,15 @@ func cleanTextForDmenu(s string) string {
 }
 
 func removeEquals(newEntry entity, entries []entity) []entity {
-	for i, entry := range entries {
+	newEntities := []entity{}
+	for _, entry := range entries {
 		if entry.Text == newEntry.Text {
-			copy(entries[i:], entries[i+1:])
-			entries[len(entries)-1] = entity{}
-			entries = entries[:len(entries)-1]
+			continue
 		}
+		newEntities = append(newEntities, entry)
 	}
 
-	return entries
+	return newEntities
 }
 
 func removeTail(entries []entity) []entity {
@@ -291,4 +312,10 @@ func removeTail(entries []entity) []entity {
 	}
 
 	return entries
+}
+
+func removeEntityByIndex(i int, entities []entity) []entity {
+	copy(entities[i:], entities[i+1:])
+	entities[len(entities)-1] = entity{}
+	return entities[:len(entities)-1]
 }
