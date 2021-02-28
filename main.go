@@ -44,7 +44,11 @@ var (
 )
 
 func main() {
+	if len(os.Args) < 2 {
+		log.Fatal("At least one argument")
+	}
 	action := os.Args[1]
+
 	switch action {
 	case actionAdd:
 		text := getClipboardContent()
@@ -53,6 +57,11 @@ func main() {
 		showEntities()
 	case actionDelete:
 		deleteEntity()
+	default:
+		fmt.Println("Please, use one of the following valid arguments:")
+		fmt.Println("add    -> Adds a new entry to the history")
+		fmt.Println("show   -> Shows the history")
+		fmt.Println("delete -> Shows the history and deletes the select entry")
 	}
 }
 
