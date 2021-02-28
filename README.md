@@ -4,7 +4,8 @@ Simple clipboard manager written in Go.
 
 # Dependencies
 
-You will need to have installed https://github.com/kfish/xsel.
+You will need to have installed https://github.com/kfish/xsel. If you want to use another program to
+manipulate the clipboard you will have to change the source.
 
 It's intended to be used with some program that captures clipboard when it changes.
 
