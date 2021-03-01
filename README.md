@@ -13,9 +13,15 @@ It's intended to be used with some program that captures clipboard when it chang
 
 You can use https://github.com/cdown/clipnotify:
 
-    while clipnotify: do
-        clipGo add
+    while ./clipnotify;
+    do
+        SelectedText="$(xsel)"
+        CopiedText="$(xsel -b)"
+        if [[ $CopiedText == $SelectedText ]]; then
+            ~/dev/clipGo/clipGo add
+        fi
     done
+
 
 # Usage
 
