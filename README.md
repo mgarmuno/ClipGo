@@ -1,6 +1,6 @@
 # ClipGo
 
-Simple clipboard manager written in Go. It's a work in progress.
+Simple clipboard manager written in Go. It's still a work in progress.
 
 # Dependencies
 
