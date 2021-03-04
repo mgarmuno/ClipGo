@@ -278,7 +278,7 @@ func writeToClipboard(st string) {
 	cmd := exec.Command(clipCommand, xselInArgs[:]...)
 	in, err := cmd.StdinPipe()
 	if err != nil {
-		log.Panic("Error generatind cmd to write in clipboard: ", err)
+		log.Panic("Error generatin\nd cmd to write in clipboard: ", err)
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -297,6 +297,7 @@ func writeToClipboard(st string) {
 }
 
 func cleanTextForDmenu(s string) string {
+	s = strings.ReplaceAll(s, `\n`, "\n")
 	s = strings.ReplaceAll(s, "\n", endLineSign)
 	s = strings.ReplaceAll(s, "\t", "    ")
 
