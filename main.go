@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -203,20 +202,6 @@ func getClipboardContent() string {
 	}
 
 	return string(clipContent)
-}
-
-func formatText(clipContent []byte) string {
-	var lanes []string
-
-	reader := bytes.NewReader(clipContent)
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		lanes = append(lanes, scanner.Text())
-	}
-
-	text := strings.Join(lanes, "\\n")
-
-	return text
 }
 
 func getFileContent() []entity {
