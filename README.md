@@ -2,6 +2,8 @@
 
 Simple clipboard manager written in Go. It's still a work in progress.
 
+![alt text](https://github.com/mgarmuno/ClipGo/blob/main/clipGoPic.png?raw=true)
+
 # Dependencies
 
 The clipboard history is shown via dmenu https://tools.suckless.org/dmenu/.
